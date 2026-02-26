@@ -53,3 +53,22 @@ export async function downloadDatasetCsv(datasetId) {
 
   return response.blob();
 }
+
+export async function renderPlot(datasetId, plotPayload) {
+  const response = await fetch(resolveUrl(`/api/datasets/${encodeURIComponent(datasetId)}/plots/render`), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(plotPayload)
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const rawMessage = payload?.detail || payload?.message || `Request failed (${response.status})`;
+    const message = typeof rawMessage === "string" ? rawMessage : JSON.stringify(rawMessage);
+    throw new Error(message);
+  }
+
+  return response.blob();
+}

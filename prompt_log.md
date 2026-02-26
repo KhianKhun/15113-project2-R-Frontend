@@ -17,6 +17,8 @@
 - Added undo button using dataset version history.
 - Added CSV download button for current dataset version.
 - Added fixed-height preview table with internal scrolling.
+- Added Plot Studio panel with variable/parameter controls and render flow.
+- Added plot preview area and PNG download action.
 
 ## Human vs AI Contribution
 

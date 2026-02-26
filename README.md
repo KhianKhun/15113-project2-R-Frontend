@@ -10,6 +10,10 @@ React + Vite frontend for the Data Studio MVP.
 - Undo last transform
 - Download current processed CSV
 - Fixed-height preview window with scrolling
+- Plot Studio:
+  - histogram, scatter, boxplot, line, bar
+  - variable selection + parameters
+  - plot preview + download PNG
 - Apply transforms through whitelist UI:
   - Drop NA rows
   - Filter rows

@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { downloadDatasetCsv, fetchPreview, transformDataset, uploadDataset } from "./api/client";
+import { downloadDatasetCsv, fetchPreview, renderPlot, transformDataset, uploadDataset } from "./api/client";
 import ColumnSummary from "./components/ColumnSummary";
 import DataPreviewTable from "./components/DataPreviewTable";
+import PlotPanel from "./components/PlotPanel/PlotPanel";
 import UploadPanel from "./components/UploadPanel";
 import DropNA from "./components/TransformPanel/DropNA";
 import FilterRows from "./components/TransformPanel/FilterRows";
@@ -13,6 +14,9 @@ export default function App() {
   const [busyUpload, setBusyUpload] = useState(false);
   const [busyTransform, setBusyTransform] = useState(false);
   const [busyDownload, setBusyDownload] = useState(false);
+  const [busyPlot, setBusyPlot] = useState(false);
+  const [plotBlob, setPlotBlob] = useState(null);
+  const [plotUrl, setPlotUrl] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   async function handleUpload(file) {
@@ -20,6 +24,11 @@ export default function App() {
     setErrorMessage("");
     try {
       const result = await uploadDataset(file);
+      if (plotUrl) {
+        window.URL.revokeObjectURL(plotUrl);
+      }
+      setPlotBlob(null);
+      setPlotUrl("");
       setDataset(result);
       setHistory([]);
     } catch (error) {
@@ -40,6 +49,11 @@ export default function App() {
     try {
       const currentId = dataset.dataset_id;
       const result = await transformDataset(dataset.dataset_id, [operation]);
+      if (plotUrl) {
+        window.URL.revokeObjectURL(plotUrl);
+      }
+      setPlotBlob(null);
+      setPlotUrl("");
       setDataset(result);
       setHistory((prev) => [...prev, currentId]);
     } catch (error) {
@@ -60,6 +74,11 @@ export default function App() {
     setErrorMessage("");
     try {
       const restored = await fetchPreview(previousId, PREVIEW_LIMIT);
+      if (plotUrl) {
+        window.URL.revokeObjectURL(plotUrl);
+      }
+      setPlotBlob(null);
+      setPlotUrl("");
       setDataset(restored);
       setHistory((prev) => prev.slice(0, -1));
     } catch (error) {
@@ -93,6 +112,40 @@ export default function App() {
     }
   }
 
+  async function handleRenderPlot(payload) {
+    if (!dataset?.dataset_id) {
+      setErrorMessage("Please upload a dataset first.");
+      return;
+    }
+
+    setBusyPlot(true);
+    setErrorMessage("");
+    try {
+      const blob = await renderPlot(dataset.dataset_id, payload);
+      if (plotUrl) {
+        window.URL.revokeObjectURL(plotUrl);
+      }
+      setPlotBlob(blob);
+      setPlotUrl(window.URL.createObjectURL(blob));
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setBusyPlot(false);
+    }
+  }
+
+  function handleDownloadPlot() {
+    if (!plotBlob || !plotUrl || !dataset?.dataset_id) {
+      return;
+    }
+    const link = document.createElement("a");
+    link.href = plotUrl;
+    link.download = `plot_${dataset.dataset_id.slice(0, 8)}.png`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -122,6 +175,13 @@ export default function App() {
             >
               {busyDownload ? "Downloading..." : "Download Current CSV"}
             </button>
+            <button
+              type="button"
+              onClick={handleDownloadPlot}
+              disabled={!plotBlob || busyPlot}
+            >
+              Download Plot PNG
+            </button>
           </div>
         </div>
       )}
@@ -133,6 +193,14 @@ export default function App() {
           <h2>Data Preview</h2>
           <p className="muted">Fixed preview window. Showing first {PREVIEW_LIMIT} rows of current dataset.</p>
           <DataPreviewTable preview={dataset?.preview || []} schema={dataset?.schema || []} />
+          <div className="plot-viewer">
+            <h2>Plot Preview</h2>
+            {plotUrl ? (
+              <img className="plot-image" src={plotUrl} alt="Rendered plot preview" />
+            ) : (
+              <p className="muted">Render a plot from the right panel.</p>
+            )}
+          </div>
         </section>
 
         <aside className="panel side-panel">
@@ -149,6 +217,13 @@ export default function App() {
             columns={dataset?.schema || []}
             onApply={applyOperation}
             disabled={!dataset || busyTransform}
+          />
+
+          <h2>Plots</h2>
+          <PlotPanel
+            columns={dataset?.schema || []}
+            disabled={!dataset || busyPlot || busyTransform || busyUpload}
+            onRender={handleRenderPlot}
           />
         </aside>
       </main>
