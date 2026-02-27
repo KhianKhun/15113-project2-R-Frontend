@@ -11,16 +11,14 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
 
-    // ✅ GitHub Pages 项目站点必须设置 base
     base: "/15113-project2-R-Frontend/",
-
-    // ✅ 输出到 docs，方便 Pages 直接选 /docs
+    
     build: {
       outDir: "docs",
       emptyOutDir: true,
     },
 
-    // ✅ 本地开发时才会用到
+
     server: {
       proxy: {
         "/api": {
