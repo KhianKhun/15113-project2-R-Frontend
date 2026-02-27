@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 
-const OPS = ["==", "!=", "<", "<=", ">", ">=", "contains", "startswith", "endswith", "is_in"];
+const FACTOR_OPS = ["==", "!=", "contains", "startswith", "endswith"];
+const NUMERIC_OPS = ["==", "!=", "<", "<=", ">", ">=", "exp", "log", "^", "+"];
 const NUMERIC_TYPES = new Set(["integer", "float"]);
+const STRICT_NUMERIC_OPS = new Set(["<", "<=", ">", ">=", "exp", "log", "^", "+"]);
+const UNARY_MATH_OPS = new Set(["exp", "log"]);
 
 export default function FilterRows({ columns, onApply, disabled }) {
-  const [logic, setLogic] = useState("AND");
   const [col, setCol] = useState("");
-  const [op, setOp] = useState("==");
+  const [factorOp, setFactorOp] = useState("");
+  const [numericOp, setNumericOp] = useState("");
   const [value, setValue] = useState("");
+  const [createNewColumn, setCreateNewColumn] = useState(false);
   const [localError, setLocalError] = useState("");
 
   const columnNames = useMemo(() => columns.map((item) => item.name), [columns]);
@@ -26,20 +30,66 @@ export default function FilterRows({ columns, onApply, disabled }) {
     }
   }, [columns, columnNames, col]);
 
+  useEffect(() => {
+    if (!col) {
+      setFactorOp("");
+      setNumericOp("");
+      return;
+    }
+
+    if (NUMERIC_TYPES.has(selectedType)) {
+      setNumericOp((prev) => prev || "==");
+      setFactorOp("");
+    } else {
+      setFactorOp((prev) => prev || "==");
+      setNumericOp("");
+    }
+  }, [col, selectedType]);
+
+  const op = numericOp || factorOp;
+  const isUnaryMath = UNARY_MATH_OPS.has(op);
+
+  useEffect(() => {
+    if (isUnaryMath) {
+      setValue("NA");
+      return;
+    }
+    if (value === "NA") {
+      setValue("");
+    }
+  }, [isUnaryMath, value]);
+
+  function onFactorOperatorChange(nextValue) {
+    setFactorOp(nextValue);
+    if (nextValue) {
+      setNumericOp("");
+    }
+  }
+
+  function onNumericOperatorChange(nextValue) {
+    setNumericOp(nextValue);
+    if (nextValue) {
+      setFactorOp("");
+    }
+  }
+
   function handleSubmit(event) {
     event.preventDefault();
-    if (disabled || !col) {
+    if (disabled || !col || !op) {
       return;
     }
 
     try {
+      if (STRICT_NUMERIC_OPS.has(op) && !NUMERIC_TYPES.has(selectedType)) {
+        throw new Error(`Operator '${op}' requires a numeric column.`);
+      }
       const parsedValue = parseValue({ op, value, selectedType });
       setLocalError("");
       onApply({
         op: "filter_rows",
         args: {
-          logic,
-          clauses: [{ col, op, value: parsedValue }]
+          clauses: [{ col, op, value: parsedValue }],
+          create_new_column: createNewColumn
         }
       });
     } catch (error) {
@@ -64,9 +114,30 @@ export default function FilterRows({ columns, onApply, disabled }) {
         ))}
       </select>
 
-      <label htmlFor="filter-op">Operator</label>
-      <select id="filter-op" value={op} onChange={(event) => setOp(event.target.value)} disabled={disabled}>
-        {OPS.map((item) => (
+      <label htmlFor="filter-op-factor">Operator (factor)</label>
+      <select
+        id="filter-op-factor"
+        value={factorOp}
+        onChange={(event) => onFactorOperatorChange(event.target.value)}
+        disabled={disabled}
+      >
+        <option value="">(none)</option>
+        {FACTOR_OPS.map((item) => (
+          <option key={item} value={item}>
+            {item}
+          </option>
+        ))}
+      </select>
+
+      <label htmlFor="filter-op-numeric">Operator (numeric)</label>
+      <select
+        id="filter-op-numeric"
+        value={numericOp}
+        onChange={(event) => onNumericOperatorChange(event.target.value)}
+        disabled={disabled}
+      >
+        <option value="">(none)</option>
+        {NUMERIC_OPS.map((item) => (
           <option key={item} value={item}>
             {item}
           </option>
@@ -77,26 +148,26 @@ export default function FilterRows({ columns, onApply, disabled }) {
       <input
         id="filter-value"
         type="text"
-        placeholder={op === "is_in" ? "a,b,c" : "value"}
+        placeholder={op === "^" ? "exponent" : op === "+" ? "increment" : isUnaryMath ? "NA (auto)" : "value"}
         value={value}
         onChange={(event) => setValue(event.target.value)}
-        disabled={disabled}
+        disabled={disabled || isUnaryMath}
       />
 
-      <label htmlFor="filter-logic">Logic</label>
-      <select
-        id="filter-logic"
-        value={logic}
-        onChange={(event) => setLogic(event.target.value)}
-        disabled={disabled}
-      >
-        <option value="AND">AND</option>
-        <option value="OR">OR</option>
-      </select>
+      <label className="inline-checkbox" htmlFor="filter-create-new-col">
+        <input
+          id="filter-create-new-col"
+          type="checkbox"
+          checked={createNewColumn}
+          onChange={(event) => setCreateNewColumn(event.target.checked)}
+          disabled={disabled}
+        />
+        Add as new column
+      </label>
 
       {localError && <p className="error-inline">{localError}</p>}
 
-      <button type="submit" disabled={disabled || !columns.length}>
+      <button type="submit" disabled={disabled || !columns.length || !op}>
         Apply Filter
       </button>
     </form>
@@ -104,24 +175,11 @@ export default function FilterRows({ columns, onApply, disabled }) {
 }
 
 function parseValue({ op, value, selectedType }) {
-  if (op === "is_in") {
-    const items = value
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-    if (!items.length) {
-      throw new Error("is_in requires at least one value.");
-    }
-    if (NUMERIC_TYPES.has(selectedType)) {
-      return items.map((item) => {
-        const n = Number(item);
-        return Number.isNaN(n) ? item : n;
-      });
-    }
-    return items;
+  if (UNARY_MATH_OPS.has(op)) {
+    return null;
   }
 
-  if (["<", "<=", ">", ">="].includes(op)) {
+  if (["<", "<=", ">", ">=", "^", "+"].includes(op)) {
     const n = Number(value);
     if (Number.isNaN(n)) {
       throw new Error("Numeric operators require a numeric value.");

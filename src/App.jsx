@@ -90,9 +90,11 @@ export default function App() {
     try {
       const currentId = dataset.dataset_id;
       const result = await transformDataset(dataset.dataset_id, [operation]);
-      clearRenderedVisuals();
       setDataset(result);
-      setHistory((prev) => [...prev, currentId]);
+      if (result.dataset_id !== currentId) {
+        clearRenderedVisuals();
+        setHistory((prev) => [...prev, currentId]);
+      }
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
