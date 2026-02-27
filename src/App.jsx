@@ -16,10 +16,23 @@ import UploadPanel from "./components/UploadPanel";
 import DropNA from "./components/TransformPanel/DropNA";
 import FilterRows from "./components/TransformPanel/FilterRows";
 
+const DEFAULT_PANEL_OPEN = {
+  columns: true,
+  transforms: true,
+  plots: false,
+  regression: false,
+  prediction: false,
+  dataPreview: true,
+  plotPreview: true,
+  regressionPreview: true,
+  predictionPreview: true
+};
+
 export default function App() {
   const PREVIEW_LIMIT = 50;
   const [dataset, setDataset] = useState(null);
   const [history, setHistory] = useState([]);
+  const [uploadResetToken, setUploadResetToken] = useState(0);
   const [busyUpload, setBusyUpload] = useState(false);
   const [busyTransform, setBusyTransform] = useState(false);
   const [busyDownload, setBusyDownload] = useState(false);
@@ -31,17 +44,7 @@ export default function App() {
   const [regressionCurveModelId, setRegressionCurveModelId] = useState("");
   const [activeRegressionModel, setActiveRegressionModel] = useState(null);
   const [predictionResult, setPredictionResult] = useState(null);
-  const [panelOpen, setPanelOpen] = useState({
-    columns: true,
-    transforms: true,
-    plots: false,
-    regression: false,
-    prediction: false,
-    dataPreview: true,
-    plotPreview: true,
-    regressionPreview: true,
-    predictionPreview: true
-  });
+  const [panelOpen, setPanelOpen] = useState(DEFAULT_PANEL_OPEN);
   const [errorMessage, setErrorMessage] = useState("");
 
   function clearRenderedVisuals() {
@@ -72,6 +75,8 @@ export default function App() {
       clearRenderedVisuals();
       setDataset(result);
       setHistory([]);
+      setPanelOpen(DEFAULT_PANEL_OPEN);
+      setUploadResetToken((prev) => prev + 1);
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -231,7 +236,7 @@ export default function App() {
         <p>UI-driven whitelist analysis pipeline (no arbitrary code execution).</p>
       </header>
 
-      <UploadPanel onUpload={handleUpload} busy={busyUpload} />
+      <UploadPanel key={`upload-${uploadResetToken}`} onUpload={handleUpload} busy={busyUpload} />
 
       {dataset && (
         <div className="dataset-meta">
@@ -372,11 +377,13 @@ export default function App() {
             {panelOpen.transforms && (
               <>
                 <DropNA
+                  key={`dropna-${uploadResetToken}`}
                   columns={dataset?.schema || []}
                   onApply={applyOperation}
                   disabled={!dataset || busyTransform}
                 />
                 <FilterRows
+                  key={`filter-${uploadResetToken}`}
                   columns={dataset?.schema || []}
                   onApply={applyOperation}
                   disabled={!dataset || busyTransform}
@@ -392,6 +399,7 @@ export default function App() {
             </button>
             {panelOpen.plots && (
               <PlotPanel
+                key={`plot-${uploadResetToken}`}
                 columns={dataset?.schema || []}
                 disabled={!dataset || busyPlot || busyTransform || busyUpload}
                 onRender={handleRenderPlot}
@@ -423,6 +431,7 @@ export default function App() {
             </button>
             {panelOpen.prediction && (
               <PredictionPanel
+                key={`prediction-${uploadResetToken}`}
                 regressionModel={activeRegressionModel}
                 disabled={!dataset || busyTransform || busyUpload}
                 onPredicted={handlePredictionResult}
