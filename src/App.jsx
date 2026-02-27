@@ -1,8 +1,17 @@
 import { useState } from "react";
-import { downloadDatasetCsv, fetchPreview, renderPlot, transformDataset, uploadDataset } from "./api/client";
+import {
+  downloadDatasetCsv,
+  fetchPreview,
+  renderPlot,
+  renderRegressionCurve,
+  transformDataset,
+  uploadDataset
+} from "./api/client";
 import ColumnSummary from "./components/ColumnSummary";
 import DataPreviewTable from "./components/DataPreviewTable";
 import PlotPanel from "./components/PlotPanel/PlotPanel";
+import PredictionPanel from "./components/PredictionPanel/PredictionPanel";
+import RegressionPanel from "./components/RegressionPanel/RegressionPanel";
 import UploadPanel from "./components/UploadPanel";
 import DropNA from "./components/TransformPanel/DropNA";
 import FilterRows from "./components/TransformPanel/FilterRows";
@@ -17,18 +26,50 @@ export default function App() {
   const [busyPlot, setBusyPlot] = useState(false);
   const [plotBlob, setPlotBlob] = useState(null);
   const [plotUrl, setPlotUrl] = useState("");
+  const [regressionCurveBlob, setRegressionCurveBlob] = useState(null);
+  const [regressionCurveUrl, setRegressionCurveUrl] = useState("");
+  const [regressionCurveModelId, setRegressionCurveModelId] = useState("");
+  const [activeRegressionModel, setActiveRegressionModel] = useState(null);
+  const [predictionResult, setPredictionResult] = useState(null);
+  const [panelOpen, setPanelOpen] = useState({
+    columns: true,
+    transforms: true,
+    plots: false,
+    regression: false,
+    prediction: false,
+    dataPreview: true,
+    plotPreview: true,
+    regressionPreview: true,
+    predictionPreview: true
+  });
   const [errorMessage, setErrorMessage] = useState("");
+
+  function clearRenderedVisuals() {
+    if (plotUrl) {
+      window.URL.revokeObjectURL(plotUrl);
+    }
+    if (regressionCurveUrl) {
+      window.URL.revokeObjectURL(regressionCurveUrl);
+    }
+    setPlotBlob(null);
+    setPlotUrl("");
+    setRegressionCurveBlob(null);
+    setRegressionCurveUrl("");
+    setRegressionCurveModelId("");
+    setActiveRegressionModel(null);
+    setPredictionResult(null);
+  }
+
+  function toggleSection(sectionKey) {
+    setPanelOpen((prev) => ({ ...prev, [sectionKey]: !prev[sectionKey] }));
+  }
 
   async function handleUpload(file) {
     setBusyUpload(true);
     setErrorMessage("");
     try {
       const result = await uploadDataset(file);
-      if (plotUrl) {
-        window.URL.revokeObjectURL(plotUrl);
-      }
-      setPlotBlob(null);
-      setPlotUrl("");
+      clearRenderedVisuals();
       setDataset(result);
       setHistory([]);
     } catch (error) {
@@ -49,11 +90,7 @@ export default function App() {
     try {
       const currentId = dataset.dataset_id;
       const result = await transformDataset(dataset.dataset_id, [operation]);
-      if (plotUrl) {
-        window.URL.revokeObjectURL(plotUrl);
-      }
-      setPlotBlob(null);
-      setPlotUrl("");
+      clearRenderedVisuals();
       setDataset(result);
       setHistory((prev) => [...prev, currentId]);
     } catch (error) {
@@ -74,11 +111,7 @@ export default function App() {
     setErrorMessage("");
     try {
       const restored = await fetchPreview(previousId, PREVIEW_LIMIT);
-      if (plotUrl) {
-        window.URL.revokeObjectURL(plotUrl);
-      }
-      setPlotBlob(null);
-      setPlotUrl("");
+      clearRenderedVisuals();
       setDataset(restored);
       setHistory((prev) => prev.slice(0, -1));
     } catch (error) {
@@ -146,6 +179,49 @@ export default function App() {
     link.remove();
   }
 
+  function handleRegressionCurveRendered(blob, modelId) {
+    if (regressionCurveUrl) {
+      window.URL.revokeObjectURL(regressionCurveUrl);
+    }
+    setRegressionCurveBlob(blob);
+    setRegressionCurveUrl(window.URL.createObjectURL(blob));
+    setRegressionCurveModelId(modelId || "");
+  }
+
+  function handleRegressionModelFitted(fitResult) {
+    setActiveRegressionModel(fitResult || null);
+    setPredictionResult(null);
+  }
+
+  async function handlePredictionResult(result) {
+    setPredictionResult(result);
+    if (regressionCurveModelId && regressionCurveModelId === result.model_id) {
+      try {
+        const updatedCurveBlob = await renderRegressionCurve(result.model_id);
+        if (regressionCurveUrl) {
+          window.URL.revokeObjectURL(regressionCurveUrl);
+        }
+        setRegressionCurveBlob(updatedCurveBlob);
+        setRegressionCurveUrl(window.URL.createObjectURL(updatedCurveBlob));
+      } catch (error) {
+        setErrorMessage(error.message);
+      }
+    }
+  }
+
+  function handleDownloadRegressionCurve() {
+    if (!regressionCurveBlob || !regressionCurveUrl) {
+      return;
+    }
+    const link = document.createElement("a");
+    link.href = regressionCurveUrl;
+    const suffix = regressionCurveModelId ? regressionCurveModelId.slice(0, 8) : "curve";
+    link.download = `regression_curve_${suffix}.png`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -182,6 +258,13 @@ export default function App() {
             >
               Download Plot PNG
             </button>
+            <button
+              type="button"
+              onClick={handleDownloadRegressionCurve}
+              disabled={!regressionCurveBlob}
+            >
+              Download Regression Curve PNG
+            </button>
           </div>
         </div>
       )}
@@ -190,41 +273,160 @@ export default function App() {
 
       <main className="app-grid">
         <section className="panel">
-          <h2>Data Preview</h2>
-          <p className="muted">Fixed preview window. Showing first {PREVIEW_LIMIT} rows of current dataset.</p>
-          <DataPreviewTable preview={dataset?.preview || []} schema={dataset?.schema || []} />
-          <div className="plot-viewer">
-            <h2>Plot Preview</h2>
-            {plotUrl ? (
-              <img className="plot-image" src={plotUrl} alt="Rendered plot preview" />
-            ) : (
-              <p className="muted">Render a plot from the right panel.</p>
+          <section className="accordion-section left-accordion">
+            <button type="button" className="section-toggle" onClick={() => toggleSection("dataPreview")}>
+              <span>Data Preview</span>
+              <span>{panelOpen.dataPreview ? "-" : "+"}</span>
+            </button>
+            {panelOpen.dataPreview && (
+              <>
+                <p className="muted">Fixed preview window. Showing first {PREVIEW_LIMIT} rows of current dataset.</p>
+                <DataPreviewTable preview={dataset?.preview || []} schema={dataset?.schema || []} />
+              </>
             )}
-          </div>
+          </section>
+
+          <section className="accordion-section left-accordion">
+            <button type="button" className="section-toggle" onClick={() => toggleSection("plotPreview")}>
+              <span>Plot Preview</span>
+              <span>{panelOpen.plotPreview ? "-" : "+"}</span>
+            </button>
+            {panelOpen.plotPreview &&
+              (plotUrl ? (
+                <img className="plot-image" src={plotUrl} alt="Rendered plot preview" />
+              ) : (
+                <p className="muted">Render a plot from the right panel.</p>
+              ))}
+          </section>
+
+          <section className="accordion-section left-accordion">
+            <button type="button" className="section-toggle" onClick={() => toggleSection("regressionPreview")}>
+              <span>Regression Curve Preview</span>
+              <span>{panelOpen.regressionPreview ? "-" : "+"}</span>
+            </button>
+            {panelOpen.regressionPreview &&
+              (regressionCurveUrl ? (
+                <img className="regression-image" src={regressionCurveUrl} alt="Regression fitted curve preview" />
+              ) : (
+                <p className="muted">Fit a regression model, then click Draw Fitted Curve.</p>
+              ))}
+          </section>
+
+          <section className="accordion-section left-accordion">
+            <button type="button" className="section-toggle" onClick={() => toggleSection("predictionPreview")}>
+              <span>Prediction Result</span>
+              <span>{panelOpen.predictionPreview ? "-" : "+"}</span>
+            </button>
+            {panelOpen.predictionPreview && (
+              <div className="prediction-result-box">
+                {!predictionResult ? (
+                  <p className="muted">No prediction yet.</p>
+                ) : (
+                  <>
+                    <p>
+                      <strong>Model:</strong> {predictionResult.model_type}
+                    </p>
+                    <p>
+                      <strong>Response ({predictionResult.y}):</strong> {Number(predictionResult.prediction).toFixed(6)}
+                    </p>
+                    {predictionResult.predicted_class && (
+                      <p>
+                        <strong>Predicted Class:</strong> {predictionResult.predicted_class}
+                      </p>
+                    )}
+                    {predictionResult.positive_class_probability !== null &&
+                      predictionResult.positive_class_probability !== undefined && (
+                        <p>
+                          <strong>Positive Class Probability:</strong>{" "}
+                          {Number(predictionResult.positive_class_probability).toFixed(6)}
+                        </p>
+                      )}
+                    <p>
+                      <strong>Curve Overlay:</strong>{" "}
+                      {predictionResult.plot_x_in_inputs ? "Enabled" : "Skipped (plot_x not provided)"}
+                    </p>
+                    <p className="muted">{predictionResult.message}</p>
+                  </>
+                )}
+              </div>
+            )}
+          </section>
         </section>
 
         <aside className="panel side-panel">
-          <h2>Columns</h2>
-          <ColumnSummary schema={dataset?.schema || []} summary={dataset?.summary || null} />
+          <section className="accordion-section">
+            <button type="button" className="section-toggle" onClick={() => toggleSection("columns")}>
+              <span>Columns</span>
+              <span>{panelOpen.columns ? "-" : "+"}</span>
+            </button>
+            {panelOpen.columns && <ColumnSummary schema={dataset?.schema || []} summary={dataset?.summary || null} />}
+          </section>
 
-          <h2>Transforms</h2>
-          <DropNA
-            columns={dataset?.schema || []}
-            onApply={applyOperation}
-            disabled={!dataset || busyTransform}
-          />
-          <FilterRows
-            columns={dataset?.schema || []}
-            onApply={applyOperation}
-            disabled={!dataset || busyTransform}
-          />
+          <section className="accordion-section">
+            <button type="button" className="section-toggle" onClick={() => toggleSection("transforms")}>
+              <span>Transforms</span>
+              <span>{panelOpen.transforms ? "-" : "+"}</span>
+            </button>
+            {panelOpen.transforms && (
+              <>
+                <DropNA
+                  columns={dataset?.schema || []}
+                  onApply={applyOperation}
+                  disabled={!dataset || busyTransform}
+                />
+                <FilterRows
+                  columns={dataset?.schema || []}
+                  onApply={applyOperation}
+                  disabled={!dataset || busyTransform}
+                />
+              </>
+            )}
+          </section>
 
-          <h2>Plots</h2>
-          <PlotPanel
-            columns={dataset?.schema || []}
-            disabled={!dataset || busyPlot || busyTransform || busyUpload}
-            onRender={handleRenderPlot}
-          />
+          <section className="accordion-section">
+            <button type="button" className="section-toggle" onClick={() => toggleSection("plots")}>
+              <span>Plots</span>
+              <span>{panelOpen.plots ? "-" : "+"}</span>
+            </button>
+            {panelOpen.plots && (
+              <PlotPanel
+                columns={dataset?.schema || []}
+                disabled={!dataset || busyPlot || busyTransform || busyUpload}
+                onRender={handleRenderPlot}
+              />
+            )}
+          </section>
+
+          <section className="accordion-section">
+            <button type="button" className="section-toggle" onClick={() => toggleSection("regression")}>
+              <span>Regression</span>
+              <span>{panelOpen.regression ? "-" : "+"}</span>
+            </button>
+            {panelOpen.regression && (
+              <RegressionPanel
+                key={dataset?.dataset_id || "regression-empty"}
+                datasetId={dataset?.dataset_id || ""}
+                columns={dataset?.schema || []}
+                disabled={!dataset || busyTransform || busyUpload}
+                onCurveRendered={handleRegressionCurveRendered}
+                onModelFitted={handleRegressionModelFitted}
+              />
+            )}
+          </section>
+
+          <section className="accordion-section">
+            <button type="button" className="section-toggle" onClick={() => toggleSection("prediction")}>
+              <span>Prediction</span>
+              <span>{panelOpen.prediction ? "-" : "+"}</span>
+            </button>
+            {panelOpen.prediction && (
+              <PredictionPanel
+                regressionModel={activeRegressionModel}
+                disabled={!dataset || busyTransform || busyUpload}
+                onPredicted={handlePredictionResult}
+              />
+            )}
+          </section>
         </aside>
       </main>
     </div>

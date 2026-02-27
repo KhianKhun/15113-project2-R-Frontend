@@ -14,6 +14,14 @@ React + Vite frontend for the Data Studio MVP.
   - histogram, scatter, boxplot, line, bar
   - variable selection + parameters
   - plot preview + download PNG
+- Regression Studio:
+  - linear / polynomial / kernel / knn / spline / additive / logistic
+  - fit model + store model id
+  - draw fitted curve + download PNG
+- Prediction Studio:
+  - input feature values for fitted model
+  - return predicted response value
+  - overlay predicted point on fitted curve when plot_x is provided
 - Apply transforms through whitelist UI:
   - Drop NA rows
   - Filter rows

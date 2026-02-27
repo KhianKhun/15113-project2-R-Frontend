@@ -19,6 +19,8 @@
 - Added fixed-height preview table with internal scrolling.
 - Added Plot Studio panel with variable/parameter controls and render flow.
 - Added plot preview area and PNG download action.
+- Added Regression panel with 7 model options and parameter controls.
+- Added fit flow + stored `model_id` + "画出拟合曲线" + curve download.
 
 ## Human vs AI Contribution
 

@@ -42,22 +42,22 @@ export default function PlotPanel({ columns, disabled, onRender }) {
     };
 
     if (plotType === "histogram") {
-      if (!selectedVars.length) return setLocalError("Histogram 至少选择一个变量。");
+      if (!selectedVars.length) return setLocalError("Histogram requires at least one selected variable.");
       if (binwidth) payload.params.binwidth = Number(binwidth);
       payload.params.alpha = Number(alpha || 0.45);
     } else if (plotType === "scatter") {
-      if (!x || !y) return setLocalError("Scatter 必须选择 x 和 y。");
+      if (!x || !y) return setLocalError("Scatter plot requires both x and y.");
       payload.params.alpha = Number(alpha || 0.75);
     } else if (plotType === "boxplot") {
       if (!(selectedVars.length || (x && y))) {
-        return setLocalError("Boxplot 请选择多个变量，或同时选择 x/y。");
+        return setLocalError("Boxplot requires selected variables or both x and y.");
       }
     } else if (plotType === "line") {
-      if (!selectedVars.length) return setLocalError("Line plot 至少选择一个 y 变量。");
+      if (!selectedVars.length) return setLocalError("Line plot requires at least one y variable.");
       payload.params.alpha = Number(alpha || 0.9);
       payload.params.linewidth = Number(lineWidth || 1.8);
     } else if (plotType === "bar") {
-      if (!x) return setLocalError("Bar plot 需要选择 x。");
+      if (!x) return setLocalError("Bar plot requires x.");
       payload.params.agg = agg;
     }
 
@@ -209,3 +209,4 @@ export default function PlotPanel({ columns, disabled, onRender }) {
     </form>
   );
 }
+

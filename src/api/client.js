@@ -72,3 +72,36 @@ export async function renderPlot(datasetId, plotPayload) {
 
   return response.blob();
 }
+
+export async function fitRegression(datasetId, regressionPayload) {
+  return request(`/api/datasets/${encodeURIComponent(datasetId)}/regressions/fit`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(regressionPayload)
+  });
+}
+
+export async function renderRegressionCurve(modelId) {
+  const response = await fetch(resolveUrl(`/api/regressions/${encodeURIComponent(modelId)}/curve`));
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const rawMessage = payload?.detail || payload?.message || `Request failed (${response.status})`;
+    const message = typeof rawMessage === "string" ? rawMessage : JSON.stringify(rawMessage);
+    throw new Error(message);
+  }
+
+  return response.blob();
+}
+
+export async function predictRegression(modelId, predictionPayload) {
+  return request(`/api/regressions/${encodeURIComponent(modelId)}/predict`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(predictionPayload)
+  });
+}
