@@ -20,7 +20,8 @@
 - Added Plot Studio panel with variable/parameter controls and render flow.
 - Added plot preview area and PNG download action.
 - Added Regression panel with 7 model options and parameter controls.
-- Added fit flow + stored `model_id` + "画出拟合曲线" + curve download.
+- Added fit flow + stored `model_id` + "drawning regression line" + curve download.
+- Added prediction model + drawing prediction points in plot
 
 ## Human vs AI Contribution
 
