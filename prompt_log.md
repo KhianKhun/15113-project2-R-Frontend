@@ -18,7 +18,7 @@
 - Added CSV download button for current dataset version.
 - Added fixed-height preview table with internal scrolling.
 - Added Plot Studio panel with variable/parameter controls and render flow.
-- Added plot preview area and PNG download action.
+- Added plot preview area and PNG download buttions.
 - Added Regression panel with 7 model options and parameter controls.
 - Added fit flow + stored `model_id` + "drawning regression line" + curve download.
 - Added prediction model + drawing prediction points in plot
