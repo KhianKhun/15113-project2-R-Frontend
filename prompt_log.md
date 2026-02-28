@@ -20,14 +20,6 @@
 - Added Plot Studio panel with variable/parameter controls and render flow.
 - Added plot preview area and PNG download action.
 - Added Regression panel with 7 model options and parameter controls.
-  - `Linear regression`
-  - `Polynomial regression`
-  - `Kernel Smoother`
-  - `KNN Smoother`
-  - `Spline Smoother`
-  - `Additive Model`
-  - `Logistic Regression`
-  (Gpt gives the sample code and required package. I change/write based on that.)
 - Added fit flow + stored `model_id` + "drawning regression line" + curve download.
 - Added prediction model + drawing prediction points in plot
 
